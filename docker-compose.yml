@@ -5,15 +5,15 @@ services:
     image: timescale/timescaledb:latest-pg16
     restart: unless-stopped
     environment:
-      POSTGRES_USER: moto_safety
-      POSTGRES_PASSWORD: SafetyMoto2026#
-      POSTGRES_DB: moto_safety
+      POSTGRES_USER: moto_safe_ai
+      POSTGRES_PASSWORD: SafeMotoAi2026#
+      POSTGRES_DB: moto_safe_ai
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U moto_safety"]
+      test: ["CMD-SHELL", "pg_isready -U moto_safe_ai"]
       interval: 5s
       timeout: 5s
       retries: 10

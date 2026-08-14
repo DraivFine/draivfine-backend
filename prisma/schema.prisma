@@ -8,10 +8,11 @@
 // notation post-trajet, signalement public sans compte, contacts d'urgence
 // et commissariat dans les Paramètres).
 //
-// Prisma ne modélise pas l'héritage : Conducteur, Passager et Gestionnaire
-// sont donc trois tables concrètes qui reprennent chacune les attributs de
-// la classe abstraite Utilisateur (id, nom, telephone/email, motDePasseHash,
-// photoUrl, creeLe) plutôt qu'une seule table avec discriminant.
+// Prisma ne modélise pas l'héritage nativement : la classe abstraite
+// Utilisateur du diagramme est donc représentée par une vraie table
+// "utilisateurs" (héritage par table de classe), et Conducteur / Passager /
+// Gestionnaire sont des tables de spécialisation en relation 1-1 qui
+// partagent le même id qu'Utilisateur plutôt que de dupliquer ses colonnes.
 // ============================================================================
 
 generator client {
@@ -30,6 +31,14 @@ datasource db {
 enum RoleUtilisateur {
   ADMIN
   GESTIONNAIRE_FLOTTE
+}
+
+// Discriminant de la table Utilisateur — quelle table de spécialisation
+// (Passager / Conducteur / Gestionnaire) porte le reste du profil.
+enum TypeUtilisateur {
+  PASSAGER
+  CONDUCTEUR
+  GESTIONNAIRE
 }
 
 enum TypeVehicule {
@@ -92,35 +101,59 @@ enum StatutSignalement {
 }
 
 // ============================================================================
-// AUTHENTIFICATION / DASHBOARD
+// AUTHENTIFICATION — Utilisateur (classe abstraite du diagramme) et ses
+// spécialisations
 // ============================================================================
 
-// Représente la spécialisation "Gestionnaire" de la classe abstraite
-// Utilisateur du diagramme de classes (compte dashboard, connexion par e-mail).
-model Gestionnaire {
+// Table concrète de la classe abstraite "Utilisateur" du diagramme : porte
+// les attributs communs (id, nom, telephone, motDePasseHash, photoUrl,
+// creeLe). Chaque sous-type (Passager/Conducteur/Gestionnaire) est une table
+// séparée en relation 1-1 qui PARTAGE la même valeur d'id (héritage par
+// table de classe) — créer un conducteur crée donc toujours une ligne
+// Utilisateur (type=CONDUCTEUR) puis une ligne Conducteur avec le même id.
+model Utilisateur {
   id             String          @id @default(uuid())
-  email          String          @unique
-  motDePasseHash String          @map("mot_de_passe_hash")
+  type           TypeUtilisateur
   nom            String
+  // Optionnel + unique : NULL pour un Gestionnaire (identifiant = email,
+  // porté par la table Gestionnaire), obligatoire pour Passager/Conducteur.
+  telephone      String?         @unique
+  // Obligatoire pour tout utilisateur, quel que soit le sous-type : un
+  // compte se crée toujours avec un mot de passe (pas de provisioning
+  // "sans mot de passe" en attente d'activation).
+  motDePasseHash String          @map("mot_de_passe_hash")
   photoUrl       String?         @map("photo_url")
-  role           RoleUtilisateur @default(GESTIONNAIRE_FLOTTE)
   creeLe         DateTime        @default(now()) @map("cree_le")
 
+  passager     Passager?
+  conducteur   Conducteur?
+  gestionnaire Gestionnaire?
+
+  @@map("utilisateurs")
+}
+
+// Spécialisation "Gestionnaire" (compte dashboard, connexion par e-mail).
+// email/entreprise/role n'existent pas sur la classe abstraite : ce sont des
+// attributs propres à cette spécialisation (cf. diagramme de classes).
+model Gestionnaire {
+  id         String          @id
+  email      String          @unique
+  entreprise String?
+  role       RoleUtilisateur @default(GESTIONNAIRE_FLOTTE)
+
+  utilisateur Utilisateur  @relation(fields: [id], references: [id], onDelete: Cascade)
   conducteurs Conducteur[]
 
   @@map("gestionnaires")
 }
 
-// Spécialisation "Passager" de Utilisateur : compte app mobile (connexion
-// par téléphone), scanne le badge d'un conducteur pour démarrer un trajet.
+// Spécialisation "Passager" : compte app mobile (connexion par téléphone,
+// porté par Utilisateur), scanne le badge d'un conducteur pour démarrer un
+// trajet. Pas d'attribut propre au-delà de la classe abstraite.
 model Passager {
-  id             String   @id @default(uuid())
-  nom            String
-  telephone      String   @unique
-  motDePasseHash String   @map("mot_de_passe_hash")
-  photoUrl       String?  @map("photo_url")
-  creeLe         DateTime @default(now()) @map("cree_le")
+  id String @id
 
+  utilisateur     Utilisateur      @relation(fields: [id], references: [id], onDelete: Cascade)
   trajets         Trajet[]
   evaluations     Evaluation[]
   contactsUrgence ContactUrgence[]
@@ -133,20 +166,16 @@ model Passager {
 // CONDUCTEURS & VÉHICULES
 // ============================================================================
 
-// Spécialisation "Conducteur" de Utilisateur. Peut être provisionné par un
-// Gestionnaire (badge émis immédiatement, motDePasseHash nul tant que le
-// conducteur n'a pas activé son compte app) ou s'inscrire lui-même.
+// Spécialisation "Conducteur". Peut être provisionné par un Gestionnaire
+// (badge émis immédiatement, mot de passe initial fourni à la création) ou
+// s'inscrire lui-même via l'app.
 model Conducteur {
-  id             String   @id @default(uuid())
-  nom            String
-  telephone      String   @unique
-  motDePasseHash String?  @map("mot_de_passe_hash")
-  photoUrl       String?  @map("photo_url")
-  qrCodeBadge    String   @unique @map("qr_code_badge")
-  gestionnaireId String?  @map("gestionnaire_id")
-  actif          Boolean  @default(true)
-  creeLe         DateTime @default(now()) @map("cree_le")
+  id             String  @id
+  qrCodeBadge    String  @unique @map("qr_code_badge")
+  gestionnaireId String? @map("gestionnaire_id")
+  actif          Boolean @default(true)
 
+  utilisateur     Utilisateur      @relation(fields: [id], references: [id], onDelete: Cascade)
   gestionnaire    Gestionnaire?    @relation(fields: [gestionnaireId], references: [id])
   vehicules       Vehicule[]
   trajets         Trajet[]
@@ -237,7 +266,10 @@ model Trajet {
 // Table à très gros volume, écriture fréquente (accéléromètre/GPS en continu).
 // Convertie en hypertable TimescaleDB après migration (voir note en bas du fichier).
 model DonneeCapteur {
-  id           BigInt   @id @default(autoincrement())
+  // Clé primaire composite : TimescaleDB exige que la colonne de
+  // partitionnement (horodatage) fasse partie de tout index unique sur une
+  // hypertable, donc pas de @id simple sur "id" seul ici.
+  id           BigInt   @default(autoincrement())
   trajetId     String   @map("trajet_id")
   horodatage   DateTime
   latitude     Float
@@ -250,6 +282,7 @@ model DonneeCapteur {
 
   trajet Trajet @relation(fields: [trajetId], references: [id], onDelete: Cascade)
 
+  @@id([id, horodatage])
   @@index([trajetId, horodatage])
   @@map("donnees_capteur")
 }

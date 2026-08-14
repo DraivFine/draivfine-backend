@@ -59,7 +59,7 @@ export class AlertesService {
 
     const conducteur = await this.prisma.conducteur.findUnique({
       where: { id: dto.conducteurId },
-      include: { contactsUrgence: true, gestionnaire: true },
+      include: { utilisateur: true, contactsUrgence: true, gestionnaire: true },
     });
 
     const diffusions: Promise<unknown>[] = [
@@ -71,7 +71,7 @@ export class AlertesService {
       diffusions.push(
         this.notifications.envoyerSms(
           contact.telephone,
-          `Urgence signalée pour ${conducteur?.nom}. Position : ${dto.latitude}, ${dto.longitude}`,
+          `Urgence signalée pour ${conducteur?.utilisateur.nom}. Position : ${dto.latitude}, ${dto.longitude}`,
         ),
       );
     }
@@ -81,7 +81,7 @@ export class AlertesService {
         this.notifications.envoyerPush(
           conducteur.gestionnaire.id,
           'Urgence conducteur',
-          `${conducteur.nom} a déclenché le bouton d'urgence`,
+          `${conducteur.utilisateur.nom} a déclenché le bouton d'urgence`,
         ),
       );
     }

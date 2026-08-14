@@ -15,6 +15,9 @@ import { PaiementsModule } from './paiements/paiements.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { AuthModule } from './auth/auth.module';
+import { UtilisateursModule } from './utilisateurs/utilisateurs.module';
+import { PassagersModule } from './passagers/passagers.module';
+import { GestionnairesModule } from './gestionnaires/gestionnaires.module';
 
 @Module({
   imports: [
@@ -37,6 +40,9 @@ import { AuthModule } from './auth/auth.module';
 
     PrismaModule,
     AuthModule,
+    UtilisateursModule,
+    PassagersModule,
+    GestionnairesModule,
     ConducteursModule,
     VehiculesModule,
     TrajetsModule,

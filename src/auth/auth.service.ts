@@ -12,16 +12,26 @@ export class AuthService {
   ) {}
 
   async login(dto: LoginDto) {
-    const utilisateur = await this.prisma.gestionnaire.findUnique({ where: { email: dto.email } });
-    if (!utilisateur) throw new UnauthorizedException('Identifiants invalides');
+    const gestionnaire = await this.prisma.gestionnaire.findUnique({
+      where: { email: dto.email },
+      include: { utilisateur: true },
+    });
+    if (!gestionnaire || !gestionnaire.utilisateur.motDePasseHash) {
+      throw new UnauthorizedException('Identifiants invalides');
+    }
 
-    const motDePasseValide = await bcrypt.compare(dto.motDePasse, utilisateur.motDePasseHash);
+    const motDePasseValide = await bcrypt.compare(dto.motDePasse, gestionnaire.utilisateur.motDePasseHash);
     if (!motDePasseValide) throw new UnauthorizedException('Identifiants invalides');
 
-    const payload = { sub: utilisateur.id, email: utilisateur.email, role: utilisateur.role };
+    const payload = { sub: gestionnaire.id, email: gestionnaire.email, role: gestionnaire.role };
     return {
       accessToken: await this.jwtService.signAsync(payload),
-      utilisateur: { id: utilisateur.id, nom: utilisateur.nom, email: utilisateur.email, role: utilisateur.role },
+      utilisateur: {
+        id: gestionnaire.id,
+        nom: gestionnaire.utilisateur.nom,
+        email: gestionnaire.email,
+        role: gestionnaire.role,
+      },
     };
   }
 }
