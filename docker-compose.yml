@@ -1,0 +1,53 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: timescale/timescaledb:latest-pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: moto_safety
+      POSTGRES_PASSWORD: SafetyMoto2026#
+      POSTGRES_DB: moto_safety
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U moto_safety"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:latest
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql://moto_safety:changeme@postgres:5432/moto_safety?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ML_SERVICE_URL: http://ml-service:8001
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+
+  # Microservice ML Python — squelette FastAPI à développer séparément
+  # (voir /ml-service, hors périmètre de ce dossier backend NestJS).
+  # ml-service:
+  #   build: ../ml-service
+  #   ports:
+  #     - "8001:8001"
+
+volumes:
+  postgres_data:

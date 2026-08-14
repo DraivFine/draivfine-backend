@@ -1,0 +1,426 @@
+// ============================================================================
+// Schéma Prisma — Plateforme de scoring comportemental conducteurs
+// PostgreSQL (+ TimescaleDB pour la table donnees_capteur, voir note en bas)
+//
+// Aligné sur le diagramme de classes (Utilisateur abstrait → Conducteur /
+// Passager / Gestionnaire, Signalement indépendant, etc.) et sur le
+// prototype de l'app mobile (comptes passager/conducteur avec mot de passe,
+// notation post-trajet, signalement public sans compte, contacts d'urgence
+// et commissariat dans les Paramètres).
+//
+// Prisma ne modélise pas l'héritage : Conducteur, Passager et Gestionnaire
+// sont donc trois tables concrètes qui reprennent chacune les attributs de
+// la classe abstraite Utilisateur (id, nom, telephone/email, motDePasseHash,
+// photoUrl, creeLe) plutôt qu'une seule table avec discriminant.
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum RoleUtilisateur {
+  ADMIN
+  GESTIONNAIRE_FLOTTE
+}
+
+enum TypeVehicule {
+  MOTO
+  VOITURE
+  CAMIONNETTE
+}
+
+enum NiveauRisque {
+  FAIBLE
+  MODERE
+  ELEVE
+  CRITIQUE
+}
+
+enum TypeAlerte {
+  FREINAGE_BRUSQUE
+  ACCELERATION_BRUSQUE
+  EXCES_VITESSE
+  TRAJECTOIRE_ANORMALE
+  URGENCE
+  INCIDENT_SIGNALE
+}
+
+enum StatutAlerte {
+  NOUVELLE
+  EN_COURS
+  RESOLUE
+  IGNOREE
+}
+
+enum TypeContactUrgence {
+  PERSONNEL
+  COMMISSARIAT
+}
+
+enum StatutAbonnement {
+  ACTIF
+  EXPIRE
+  SUSPENDU
+  ANNULE
+}
+
+enum OperateurPaiement {
+  MTN_MOMO
+  ORANGE_MONEY
+}
+
+enum StatutPaiement {
+  EN_ATTENTE
+  REUSSI
+  ECHOUE
+  REMBOURSE
+}
+
+enum StatutSignalement {
+  NOUVEAU
+  RECOUPE
+  TRAITE
+}
+
+// ============================================================================
+// AUTHENTIFICATION / DASHBOARD
+// ============================================================================
+
+// Représente la spécialisation "Gestionnaire" de la classe abstraite
+// Utilisateur du diagramme de classes (compte dashboard, connexion par e-mail).
+model Gestionnaire {
+  id             String          @id @default(uuid())
+  email          String          @unique
+  motDePasseHash String          @map("mot_de_passe_hash")
+  nom            String
+  photoUrl       String?         @map("photo_url")
+  role           RoleUtilisateur @default(GESTIONNAIRE_FLOTTE)
+  creeLe         DateTime        @default(now()) @map("cree_le")
+
+  conducteurs Conducteur[]
+
+  @@map("gestionnaires")
+}
+
+// Spécialisation "Passager" de Utilisateur : compte app mobile (connexion
+// par téléphone), scanne le badge d'un conducteur pour démarrer un trajet.
+model Passager {
+  id             String   @id @default(uuid())
+  nom            String
+  telephone      String   @unique
+  motDePasseHash String   @map("mot_de_passe_hash")
+  photoUrl       String?  @map("photo_url")
+  creeLe         DateTime @default(now()) @map("cree_le")
+
+  trajets         Trajet[]
+  evaluations     Evaluation[]
+  contactsUrgence ContactUrgence[]
+  alertes         Alerte[]
+
+  @@map("passagers")
+}
+
+// ============================================================================
+// CONDUCTEURS & VÉHICULES
+// ============================================================================
+
+// Spécialisation "Conducteur" de Utilisateur. Peut être provisionné par un
+// Gestionnaire (badge émis immédiatement, motDePasseHash nul tant que le
+// conducteur n'a pas activé son compte app) ou s'inscrire lui-même.
+model Conducteur {
+  id             String   @id @default(uuid())
+  nom            String
+  telephone      String   @unique
+  motDePasseHash String?  @map("mot_de_passe_hash")
+  photoUrl       String?  @map("photo_url")
+  qrCodeBadge    String   @unique @map("qr_code_badge")
+  gestionnaireId String?  @map("gestionnaire_id")
+  actif          Boolean  @default(true)
+  creeLe         DateTime @default(now()) @map("cree_le")
+
+  gestionnaire    Gestionnaire?    @relation(fields: [gestionnaireId], references: [id])
+  vehicules       Vehicule[]
+  trajets         Trajet[]
+  abonnements     Abonnement[]
+  contactsUrgence ContactUrgence[]
+  alertes         Alerte[]
+  signalements    Signalement[]
+
+  @@index([gestionnaireId])
+  @@map("conducteurs")
+}
+
+// Contact prévenu en cas d'urgence — rattaché soit à un Passager (contact de
+// confiance suivant le trajet, cf. prototype mobile "Trajet en cours"), soit
+// à un Conducteur (contact personnel du livreur/chauffeur). Le type
+// COMMISSARIAT correspond à l'entrée "Commissariat le plus proche" des
+// Paramètres mobile ; actif reflète le switch on/off de cet écran.
+model ContactUrgence {
+  id           String             @id @default(uuid())
+  passagerId   String?            @map("passager_id")
+  conducteurId String?            @map("conducteur_id")
+  nom          String
+  telephone    String?
+  type         TypeContactUrgence @default(PERSONNEL)
+  actif        Boolean            @default(true)
+
+  passager   Passager?   @relation(fields: [passagerId], references: [id], onDelete: Cascade)
+  conducteur Conducteur? @relation(fields: [conducteurId], references: [id], onDelete: Cascade)
+
+  @@index([passagerId])
+  @@index([conducteurId])
+  @@map("contacts_urgence")
+}
+
+model Vehicule {
+  id              String       @id @default(uuid())
+  conducteurId    String       @map("conducteur_id")
+  immatriculation String       @unique
+  type            TypeVehicule @default(MOTO)
+  marque          String?
+  modele          String?
+  creeLe          DateTime     @default(now()) @map("cree_le")
+
+  conducteur   Conducteur    @relation(fields: [conducteurId], references: [id], onDelete: Cascade)
+  trajets      Trajet[]
+  signalements Signalement[]
+
+  @@index([conducteurId])
+  @@map("vehicules")
+}
+
+// ============================================================================
+// TRAJETS & DONNÉES CAPTEURS
+// ============================================================================
+
+model Trajet {
+  id           String    @id @default(uuid())
+  conducteurId String    @map("conducteur_id")
+  vehiculeId   String    @map("vehicule_id")
+  // Renseigné par l'app mobile passager (scan du badge) ; nullable pour
+  // rester compatible avec un trajet démarré autrement qu'en scannant un
+  // passager (le diagramme de classes ne trace pas cette association mais
+  // le prototype mobile — historique passager, notation — en dépend).
+  passagerId   String?   @map("passager_id")
+  debut        DateTime
+  fin          DateTime?
+  distanceKm   Float?    @map("distance_km")
+  // Montant perçu par le conducteur pour ce trajet (affiché dans
+  // l'historique conducteur du prototype mobile).
+  montant      Float?
+  enCours      Boolean   @default(true) @map("en_cours")
+
+  conducteur     Conducteur      @relation(fields: [conducteurId], references: [id])
+  vehicule       Vehicule        @relation(fields: [vehiculeId], references: [id])
+  passager       Passager?       @relation(fields: [passagerId], references: [id])
+  donneesCapteur DonneeCapteur[]
+  score          Score?
+  evaluation     Evaluation?
+  alertes        Alerte[]
+  signalements   Signalement[]
+
+  @@index([conducteurId, debut])
+  @@index([vehiculeId])
+  @@index([passagerId, debut])
+  @@map("trajets")
+}
+
+// Table à très gros volume, écriture fréquente (accéléromètre/GPS en continu).
+// Convertie en hypertable TimescaleDB après migration (voir note en bas du fichier).
+model DonneeCapteur {
+  id           BigInt   @id @default(autoincrement())
+  trajetId     String   @map("trajet_id")
+  horodatage   DateTime
+  latitude     Float
+  longitude    Float
+  vitesse      Float?
+  acceleration Float?
+  gyroscopeX   Float?   @map("gyroscope_x")
+  gyroscopeY   Float?   @map("gyroscope_y")
+  gyroscopeZ   Float?   @map("gyroscope_z")
+
+  trajet Trajet @relation(fields: [trajetId], references: [id], onDelete: Cascade)
+
+  @@index([trajetId, horodatage])
+  @@map("donnees_capteur")
+}
+
+// ============================================================================
+// SCORING, NOTATION & ALERTES
+// ============================================================================
+
+// Score comportemental automatique, calculé à partir des données capteurs
+// (ML ou heuristiques). Distinct de Evaluation, qui capture l'avis subjectif
+// du passager.
+model Score {
+  id                    String       @id @default(uuid())
+  trajetId              String       @unique @map("trajet_id")
+  noteGlobale           Float        @map("note_globale")
+  niveauRisque          NiveauRisque @map("niveau_risque")
+  freinagesBrusques     Int          @default(0) @map("freinages_brusques")
+  accelerationsBrusques Int          @default(0) @map("accelerations_brusques")
+  excesVitesse          Int          @default(0) @map("exces_vitesse")
+  trajectoireAnormale   Boolean      @default(false) @map("trajectoire_anormale")
+  sourceCalcul          String       @default("heuristique") @map("source_calcul")
+  calculeLe             DateTime     @default(now()) @map("calcule_le")
+
+  trajet  Trajet   @relation(fields: [trajetId], references: [id], onDelete: Cascade)
+  alertes Alerte[]
+
+  @@map("scores")
+}
+
+// Avis du passager en fin de trajet (étoiles + tags rapides du prototype
+// mobile, ex. "Conduite prudente", "Trajet direct", "Poli"). Signal
+// subjectif et déclaratif, distinct du Score comportemental automatique.
+model Evaluation {
+  id          String   @id @default(uuid())
+  trajetId    String   @unique @map("trajet_id")
+  passagerId  String   @map("passager_id")
+  note        Int
+  tags        String[] @default([])
+  commentaire String?
+  creeLe      DateTime @default(now()) @map("cree_le")
+
+  trajet   Trajet   @relation(fields: [trajetId], references: [id], onDelete: Cascade)
+  passager Passager @relation(fields: [passagerId], references: [id])
+
+  @@index([passagerId])
+  @@map("evaluations")
+}
+
+// Trajet et passager sont renseignés pour un bouton d'urgence ou un incident
+// signalé depuis l'app (rattachement possible avant même que le score de fin
+// de trajet n'existe) ; conducteurId permet de garder un historique par
+// conducteur même pour une urgence déclenchée hors trajet. score reste le
+// canal des alertes générées automatiquement à partir du comportement.
+model Alerte {
+  id           String       @id @default(uuid())
+  scoreId      String?      @map("score_id")
+  trajetId     String?      @map("trajet_id")
+  passagerId   String?      @map("passager_id")
+  conducteurId String?      @map("conducteur_id")
+  type         TypeAlerte
+  statut       StatutAlerte @default(NOUVELLE)
+  message      String?
+  commentaire  String?
+  photos       String[]     @default([])
+  latitude     Float?
+  longitude    Float?
+  creeLe       DateTime     @default(now()) @map("cree_le")
+  resolueLe    DateTime?    @map("resolue_le")
+
+  score      Score?      @relation(fields: [scoreId], references: [id], onDelete: Cascade)
+  trajet     Trajet?     @relation(fields: [trajetId], references: [id], onDelete: Cascade)
+  passager   Passager?   @relation(fields: [passagerId], references: [id])
+  conducteur Conducteur? @relation(fields: [conducteurId], references: [id])
+
+  @@index([statut, creeLe])
+  @@index([trajetId])
+  @@map("alertes")
+}
+
+// ============================================================================
+// SIGNALEMENT PUBLIC (sans compte requis)
+// ============================================================================
+
+// Signalement d'accident déposé sans authentification (bouton "Signaler un
+// accident (sans compte)" du prototype mobile). Position obligatoire, tout
+// le reste — description, témoin, plaque/badge scanné, photos — est
+// optionnel. Les liens vers Conducteur/Vehicule/Trajet sont établis en
+// best-effort (plaque saisie, badge scanné) et peuvent rester nuls.
+model Signalement {
+  id              String            @id @default(uuid())
+  latitude        Float
+  longitude       Float
+  description     String?
+  telephoneTemoin String?           @map("telephone_temoin")
+  conducteurId    String?           @map("conducteur_id")
+  vehiculeId      String?           @map("vehicule_id")
+  trajetId        String?           @map("trajet_id")
+  photos          String[]          @default([])
+  statut          StatutSignalement @default(NOUVEAU)
+  creeLe          DateTime          @default(now()) @map("cree_le")
+
+  conducteur Conducteur? @relation(fields: [conducteurId], references: [id])
+  vehicule   Vehicule?   @relation(fields: [vehiculeId], references: [id])
+  trajet     Trajet?     @relation(fields: [trajetId], references: [id])
+
+  @@index([conducteurId])
+  @@index([vehiculeId])
+  @@index([trajetId])
+  @@index([creeLe])
+  @@map("signalements")
+}
+
+// ============================================================================
+// PLANS, ABONNEMENTS & PAIEMENTS
+// ============================================================================
+
+// Catalogue des plans (ex. "Standard — 2 000 FCFA/mois" du prototype
+// mobile). Remplace l'ancien enum PlanAbonnement pour permettre de faire
+// évoluer tarifs/plans sans migration de schéma.
+model Plan {
+  id          String   @id @default(uuid())
+  nom         String
+  prixMensuel Float    @map("prix_mensuel")
+  dureeJours  Int      @default(30) @map("duree_jours")
+  description String?
+  actif       Boolean  @default(true)
+  creeLe      DateTime @default(now()) @map("cree_le")
+
+  abonnements Abonnement[]
+
+  @@map("plans")
+}
+
+model Abonnement {
+  id           String           @id @default(uuid())
+  conducteurId String           @map("conducteur_id")
+  planId       String           @map("plan_id")
+  statut       StatutAbonnement @default(ACTIF)
+  debuteLe     DateTime         @default(now()) @map("debute_le")
+  renouvelleLe DateTime         @map("renouvelle_le")
+
+  conducteur Conducteur @relation(fields: [conducteurId], references: [id])
+  plan       Plan       @relation(fields: [planId], references: [id])
+  paiements  Paiement[]
+
+  @@index([conducteurId])
+  @@index([planId])
+  @@map("abonnements")
+}
+
+model Paiement {
+  id               String            @id @default(uuid())
+  abonnementId     String            @map("abonnement_id")
+  operateur        OperateurPaiement
+  montant          Float
+  devise           String            @default("XAF")
+  statut           StatutPaiement    @default(EN_ATTENTE)
+  referenceExterne String?           @map("reference_externe")
+  creeLe           DateTime          @default(now()) @map("cree_le")
+
+  abonnement Abonnement @relation(fields: [abonnementId], references: [id])
+
+  @@index([abonnementId])
+  @@map("paiements")
+}
+
+// ============================================================================
+// NOTE — TimescaleDB pour donnees_capteur
+// ============================================================================
+// Prisma ne sait pas créer de hypertable nativement. Après la première
+// migration Prisma, exécuter le script prisma/timescale.sql :
+//
+//   CREATE EXTENSION IF NOT EXISTS timescaledb;
+//   SELECT create_hypertable('donnees_capteur', 'horodatage', migrate_data => true);
