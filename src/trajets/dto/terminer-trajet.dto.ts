@@ -7,4 +7,10 @@ export class TerminerTrajetDto {
   @IsNumber()
   @Min(0)
   distanceKm?: number;
+
+  @ApiPropertyOptional({ description: 'Montant perçu par le conducteur pour ce trajet (XAF)', minimum: 0 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  montant?: number;
 }

@@ -18,6 +18,7 @@ export class TrajetsService {
       data: {
         conducteurId: dto.conducteurId,
         vehiculeId: dto.vehiculeId,
+        passagerId: dto.passagerId,
         debut: new Date(),
       },
     });
@@ -36,6 +37,7 @@ export class TrajetsService {
         fin: new Date(),
         enCours: false,
         distanceKm: dto.distanceKm,
+        montant: dto.montant,
       },
     });
 

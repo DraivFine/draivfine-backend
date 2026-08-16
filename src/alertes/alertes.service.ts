@@ -47,15 +47,29 @@ export class AlertesService {
    * juste après l'appel HTTP.
    */
   async creerUrgence(dto: DeclencherUrgenceDto) {
-    const alerte = await this.prisma.alerte.create({
+    let alerte = await this.prisma.alerte.create({
       data: {
-        type: 'URGENCE',
+        type: dto.type,
         message: 'Bouton urgence déclenché',
         conducteurId: dto.conducteurId,
         latitude: dto.latitude,
         longitude: dto.longitude,
+        trajetId: dto.trajetId,
       },
     });
+
+    // trajetId est optionnel sur le DTO : ne chercher/mettre à jour le
+    // passager que s'il a été fourni, sinon findUnique({ id: undefined })
+    // lève une erreur Prisma.
+    if (dto.trajetId) {
+      const trajet = await this.prisma.trajet.findUnique({ where: { id: dto.trajetId } });
+      if (trajet?.passagerId) {
+        alerte = await this.prisma.alerte.update({
+          where: { id: alerte.id },
+          data: { passagerId: trajet.passagerId },
+        });
+      }
+    }
 
     const conducteur = await this.prisma.conducteur.findUnique({
       where: { id: dto.conducteurId },

@@ -5,5 +5,5 @@ import { StatutAlerte } from '@prisma/client';
 export class UpdateStatutAlerteDto {
   @ApiProperty({ enum: StatutAlerte, description: 'Nouveau statut de l\'alerte' })
   @IsEnum(StatutAlerte)
-  statut: StatutAlerte;
+  statut!: StatutAlerte;
 }

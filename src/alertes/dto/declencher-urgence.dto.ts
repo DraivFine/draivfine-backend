@@ -1,7 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
+import { TypeAlerte } from '@prisma/client';
 
 export class DeclencherUrgenceDto {
+  @ApiProperty({ enum: TypeAlerte, description: "Type de l'alerte déclenchée" })
+  @IsEnum(TypeAlerte)
+  type: TypeAlerte;
+
   @ApiProperty({ description: 'Conducteur ayant déclenché le bouton d\'urgence', format: 'uuid' })
   @IsString()
   conducteurId: string;
