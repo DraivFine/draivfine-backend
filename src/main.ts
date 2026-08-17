@@ -34,9 +34,9 @@ async function bootstrap() {
   app.useGlobalFilters(new HttpExceptionFilter());
 
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('MotoSafe API')
+    .setTitle('DraivFine API')
     .setDescription(
-      "API de la plateforme de scoring comportemental des conducteurs (moto safety) : trajets, ingestion de données capteurs, scoring (ML + heuristiques), alertes et bouton d'urgence, abonnements et paiement mobile money.",
+      "API de la plateforme de scoring comportemental des conducteurs (DraivFine) : trajets, ingestion de données capteurs, scoring (ML + heuristiques), alertes et bouton d'urgence, abonnements et paiement mobile money.",
     )
     .setVersion('1.0')
     .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'jwt')

@@ -18,11 +18,30 @@ export class VehiculesController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Lister les véhicules, éventuellement filtrés par conducteur' })
+  @ApiOperation({ summary: 'Lister les véhicules, éventuellement filtrés par conducteur, immatriculation ou modèle' })
   @ApiQuery({ name: 'conducteurId', required: false, description: 'Filtrer par conducteur' })
+  @ApiQuery({ name: 'immatriculation', required: false, description: 'Filtrer par immatriculation (recherche partielle)' })
+  @ApiQuery({ name: 'modele', required: false, description: 'Filtrer par modèle (recherche partielle)' })
   @ApiResponse({ status: 200, description: 'Liste des véhicules' })
-  findAll(@Query('conducteurId') conducteurId?: string) {
-    return this.vehiculesService.findAll(conducteurId);
+  findAll(
+    @Query('conducteurId') conducteurId?: string,
+    @Query('immatriculation') immatriculation?: string,
+    @Query('modele') modele?: string,
+  ) {
+    return this.vehiculesService.findAll(conducteurId, immatriculation, modele);
+  }
+
+  @Get('par-badge')
+  @ApiOperation({
+    summary: "Retrouver les véhicules d'un conducteur via son badge QR",
+    description:
+      "Utilisé par l'app mobile passager lors du scan du badge conducteur, pour proposer le(s) véhicule(s) avant de démarrer le trajet.",
+  })
+  @ApiQuery({ name: 'qrCodeBadge', description: 'Valeur encodée dans le QR code du badge' })
+  @ApiResponse({ status: 200, description: 'Véhicules du conducteur' })
+  @ApiResponse({ status: 404, description: 'Badge inconnu' })
+  findByBadge(@Query('qrCodeBadge') qrCodeBadge: string) {
+    return this.vehiculesService.findByBadge(qrCodeBadge);
   }
 
   @Get(':id')

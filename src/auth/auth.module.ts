@@ -6,6 +6,8 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { GestionnairesModule } from '../gestionnaires/gestionnaires.module';
+import { ConducteursModule } from '../conducteurs/conducteurs.module';
+import { PassagersModule } from '../passagers/passagers.module';
 
 @Module({
   imports: [
@@ -19,6 +21,8 @@ import { GestionnairesModule } from '../gestionnaires/gestionnaires.module';
       }),
     }),
     GestionnairesModule,
+    ConducteursModule,
+    PassagersModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],

@@ -31,11 +31,12 @@ export class TrajetsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Lister les trajets (100 plus récents), éventuellement filtrés par conducteur' })
+  @ApiOperation({ summary: 'Lister les trajets (100 plus récents), éventuellement filtrés par conducteur ou passager' })
   @ApiQuery({ name: 'conducteurId', required: false, description: 'Filtrer par conducteur' })
+  @ApiQuery({ name: 'passagerId', required: false, description: 'Filtrer par passager' })
   @ApiResponse({ status: 200, description: 'Liste des trajets' })
-  findAll(@Query('conducteurId') conducteurId?: string) {
-    return this.trajetsService.findAll(conducteurId);
+  findAll(@Query('conducteurId') conducteurId?: string, @Query('passagerId') passagerId?: string) {
+    return this.trajetsService.findAll(conducteurId, passagerId);
   }
 
   @Get(':id')

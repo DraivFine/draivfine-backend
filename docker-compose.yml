@@ -44,7 +44,7 @@ services:
 
   ml-service:
     build: ../moto-safe-ml
-    container_name: moto-safe-ml
+    container_name: draivfine-ml
     restart: unless-stopped
     ports:
       - "8001:8001"

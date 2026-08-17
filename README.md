@@ -1,6 +1,6 @@
-# Moto Safety — Backend NestJS
+# DraivFine — Backend NestJS
 
-API de la plateforme de scoring comportemental des conducteurs (moto safety) :
+API de la plateforme de scoring comportemental des conducteurs (DraivFine) :
 suivi de trajets, ingestion de données capteurs, scoring (ML + heuristiques),
 alertes et bouton d'urgence, abonnements et paiement mobile money.
 

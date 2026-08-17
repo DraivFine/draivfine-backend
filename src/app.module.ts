@@ -10,6 +10,7 @@ import { TrajetsModule } from './trajets/trajets.module';
 import { CapteursModule } from './capteurs/capteurs.module';
 import { ScoringModule } from './scoring/scoring.module';
 import { AlertesModule } from './alertes/alertes.module';
+import { ContactsUrgenceModule } from './contacts-urgence/contacts-urgence.module';
 import { AbonnementsModule } from './abonnements/abonnements.module';
 import { PaiementsModule } from './paiements/paiements.module';
 import { NotificationsModule } from './notifications/notifications.module';
@@ -49,6 +50,7 @@ import { GestionnairesModule } from './gestionnaires/gestionnaires.module';
     CapteursModule,
     ScoringModule,
     AlertesModule,
+    ContactsUrgenceModule,
     AbonnementsModule,
     PaiementsModule,
     NotificationsModule,

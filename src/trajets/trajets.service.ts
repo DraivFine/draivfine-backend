@@ -52,9 +52,9 @@ export class TrajetsService {
     return trajetTermine;
   }
 
-  findAll(conducteurId?: string) {
+  findAll(conducteurId?: string, passagerId?: string) {
     return this.prisma.trajet.findMany({
-      where: conducteurId ? { conducteurId } : undefined,
+      where: { conducteurId, passagerId },
       include: { score: true, vehicule: true },
       orderBy: { debut: 'desc' },
       take: 100,
