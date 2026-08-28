@@ -439,14 +439,25 @@ model Paiement {
   abonnementId     String            @map("abonnement_id")
   operateur        OperateurPaiement
   montant          Float
+  // Montant réellement envoyé à GetMePay (arrondi au multiple de 50
+  // supérieur — convention du fournisseur), distinct de montant si arrondi.
+  montantArrondi   Float?            @map("montant_arrondi")
   devise           String            @default("XAF")
   statut           StatutPaiement    @default(EN_ATTENTE)
+  // Statut brut renvoyé par GetMePay ('processing'|'success'|'failed'|'pending'),
+  // conservé tel quel pour le debug/support, distinct de `statut` (notre enum).
+  statutFournisseur String?          @map("statut_fournisseur")
+  // transaction_reference GetMePay (leur "order_id").
   referenceExterne String?           @map("reference_externe")
+  // soleaspay_reference GetMePay (leur "pay_id") — requis avec
+  // referenceExterne pour interroger /payments/direct-status.
+  payReference     String?           @map("pay_reference")
   creeLe           DateTime          @default(now()) @map("cree_le")
 
   abonnement Abonnement @relation(fields: [abonnementId], references: [id])
 
   @@index([abonnementId])
+  @@index([referenceExterne])
   @@map("paiements")
 }
 

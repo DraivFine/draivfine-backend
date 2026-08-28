@@ -15,20 +15,22 @@ export class AbonnementsService {
 
     return this.prisma.abonnement.create({
       data: { ...dto, renouvelleLe },
+      include: { plan: true, paiements: true },
     });
   }
 
   findAll(conducteurId?: string) {
     return this.prisma.abonnement.findMany({
       where: conducteurId ? { conducteurId } : undefined,
-      include: { paiements: true },
+      include: { plan: true, paiements: { orderBy: { creeLe: 'desc' } } },
+      orderBy: { debuteLe: 'desc' },
     });
   }
 
   async findOne(id: string) {
     const abonnement = await this.prisma.abonnement.findUnique({
       where: { id },
-      include: { paiements: true },
+      include: { plan: true, paiements: { orderBy: { creeLe: 'desc' } } },
     });
     if (!abonnement) throw new NotFoundException('Abonnement introuvable');
     return abonnement;

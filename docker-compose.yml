@@ -43,13 +43,13 @@ services:
       - .env
 
   ml-service:
-    build: ../moto-safe-ml
+    build: ../draivfine-ml
     container_name: draivfine-ml
     restart: unless-stopped
     ports:
       - "8001:8001"
     env_file:
-      - ../moto-safe-ml/.env
+      - ../draivfine-ml/.env
 
 volumes:
   postgres_data:

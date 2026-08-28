@@ -43,16 +43,11 @@ export default () => ({
     privateKey: process.env.FCM_PRIVATE_KEY,
   },
 
-  momo: {
-    apiKey: process.env.MOMO_API_KEY,
-    apiUser: process.env.MOMO_API_USER,
-    subscriptionKey: process.env.MOMO_SUBSCRIPTION_KEY,
-    targetEnv: process.env.MOMO_TARGET_ENV ?? 'sandbox',
-  },
-
-  orangeMoney: {
-    clientId: process.env.ORANGE_MONEY_CLIENT_ID,
-    clientSecret: process.env.ORANGE_MONEY_CLIENT_SECRET,
-    merchantKey: process.env.ORANGE_MONEY_MERCHANT_KEY,
+  getmepay: {
+    apiUrl: process.env.GETMEPAY_API_URL ?? 'https://api.getmipay.com/api/v1',
+    publicApiKey: process.env.GETMEPAY_PUBLIC_APIKEY,
+    privateSecretKey: process.env.GETMEPAY_PRIVATE_SECRETKEY,
+    timeoutMs: parseInt(process.env.GETMEPAY_TIMEOUT_MS ?? '15000', 10),
+    callbackUrl: process.env.GETMEPAY_CALLBACK_URL,
   },
 });

@@ -1,8 +1,31 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { randomUUID } from 'crypto';
+import { existsSync, mkdirSync } from 'fs';
+import { extname, join } from 'path';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  HttpStatus,
+  Param,
+  ParseFilePipeBuilder,
+  Patch,
+  Post,
+  Query,
+  UploadedFiles,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { ApiBody, ApiConsumes, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { diskStorage } from 'multer';
 import { AlertesService } from './alertes.service';
 import { DeclencherUrgenceDto } from './dto/declencher-urgence.dto';
 import { UpdateStatutAlerteDto } from './dto/update-statut-alerte.dto';
+
+const PHOTOS_DIR = join(process.cwd(), 'uploads', 'photos');
+if (!existsSync(PHOTOS_DIR)) mkdirSync(PHOTOS_DIR, { recursive: true });
+
+const FORMATS_ACCEPTES = ['image/jpeg', 'image/png', 'image/webp'];
 
 @ApiTags('Alertes')
 @Controller({ path: 'alertes', version: '1' })
@@ -21,11 +44,21 @@ export class AlertesController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Lister les alertes, éventuellement filtrées par statut' })
+  @ApiOperation({ summary: 'Lister les alertes, éventuellement filtrées par statut et/ou conducteur' })
   @ApiQuery({ name: 'statut', required: false, enum: ['NOUVELLE', 'EN_COURS', 'RESOLUE', 'IGNOREE'] })
+  @ApiQuery({ name: 'conducteurId', required: false, description: "Filtrer par conducteur (historique mobile)" })
   @ApiResponse({ status: 200, description: 'Liste des alertes (200 plus récentes)' })
-  findAll(@Query('statut') statut?: string) {
-    return this.alertesService.findAll(statut);
+  findAll(@Query('statut') statut?: string, @Query('conducteurId') conducteurId?: string) {
+    return this.alertesService.findAll(statut, conducteurId);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: "Détail d'une alerte" })
+  @ApiParam({ name: 'id', description: "Identifiant de l'alerte" })
+  @ApiResponse({ status: 200, description: 'Alerte trouvée' })
+  @ApiResponse({ status: 404, description: 'Alerte introuvable' })
+  findOne(@Param('id') id: string) {
+    return this.alertesService.findOne(id);
   }
 
   @Patch(':id/statut')
@@ -35,5 +68,54 @@ export class AlertesController {
   @ApiResponse({ status: 404, description: 'Alerte introuvable' })
   updateStatut(@Param('id') id: string, @Body() dto: UpdateStatutAlerteDto) {
     return this.alertesService.updateStatut(id, dto);
+  }
+
+  @Post(':id/photos')
+  @ApiOperation({ summary: "Ajouter des photos à une alerte (ex. photos d'un accident)" })
+  @ApiParam({ name: 'id', description: "Identifiant de l'alerte" })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['photos'],
+      properties: {
+        photos: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+          description: 'Jusqu’à 5 images JPEG, PNG ou WebP — 5 Mo maximum chacune',
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Photos ajoutées, alerte mise à jour' })
+  @ApiResponse({ status: 400, description: 'Fichier manquant, format non supporté ou trop volumineux' })
+  @ApiResponse({ status: 404, description: 'Alerte introuvable' })
+  @UseInterceptors(
+    FilesInterceptor('photos', 5, {
+      storage: diskStorage({
+        destination: PHOTOS_DIR,
+        filename: (_req, file, callback) => callback(null, `${randomUUID()}${extname(file.originalname)}`),
+      }),
+      limits: { fileSize: 5 * 1024 * 1024 },
+      fileFilter: (_req, file, callback) => {
+        if (!FORMATS_ACCEPTES.includes(file.mimetype)) {
+          callback(new BadRequestException('Formats acceptés : JPEG, PNG, WebP'), false);
+          return;
+        }
+        callback(null, true);
+      },
+    }),
+  )
+  ajouterPhotos(
+    @Param('id') id: string,
+    @UploadedFiles(
+      new ParseFilePipeBuilder().build({ fileIsRequired: true, errorHttpStatusCode: HttpStatus.BAD_REQUEST }),
+    )
+    photos: Express.Multer.File[],
+  ) {
+    return this.alertesService.ajouterPhotos(
+      id,
+      photos.map((photo) => `/uploads/photos/${photo.filename}`),
+    );
   }
 }

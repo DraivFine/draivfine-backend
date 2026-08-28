@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { DemarrerTrajetDto } from './dto/demarrer-trajet.dto';
 import { TerminerTrajetDto } from './dto/terminer-trajet.dto';
 import { SCORING_QUEUE } from '../scoring/scoring.constants';
+import { calculerDistanceTrajetKm } from '../common/calculer-distance';
 
 @Injectable()
 export class TrajetsService {
@@ -31,12 +32,24 @@ export class TrajetsService {
       throw new BadRequestException('Ce trajet est déjà terminé');
     }
 
+    // À défaut de distance fournie par le client, on la calcule à partir de la
+    // trace GPS ingérée pendant le trajet (somme des distances haversine
+    // entre points consécutifs).
+    let distanceKm = dto.distanceKm;
+    if (distanceKm === undefined) {
+      const points = await this.prisma.donneeCapteur.findMany({
+        where: { trajetId: id },
+        orderBy: { horodatage: 'asc' },
+      });
+      if (points.length > 1) distanceKm = calculerDistanceTrajetKm(points);
+    }
+
     const trajetTermine = await this.prisma.trajet.update({
       where: { id },
       data: {
         fin: new Date(),
         enCours: false,
-        distanceKm: dto.distanceKm,
+        distanceKm,
         montant: dto.montant,
       },
     });

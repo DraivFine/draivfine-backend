@@ -21,5 +21,9 @@
     "paths": {
       "@/*": ["src/*"]
     }
+  },
+  "watchOptions": {
+    "watchFile": "fixedPollingInterval",
+    "watchDirectory": "fixedPollingInterval"
   }
 }

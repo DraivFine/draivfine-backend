@@ -7,9 +7,21 @@ export class DeclencherUrgenceDto {
   @IsEnum(TypeAlerte)
   type: TypeAlerte;
 
-  @ApiProperty({ description: 'Conducteur ayant déclenché le bouton d\'urgence', format: 'uuid' })
+  @ApiPropertyOptional({
+    description: "Conducteur ayant déclenché le bouton d'urgence (exclusif avec passagerId)",
+    format: 'uuid',
+  })
+  @IsOptional()
   @IsString()
-  conducteurId: string;
+  conducteurId?: string;
+
+  @ApiPropertyOptional({
+    description: "Passager ayant déclenché le bouton d'urgence (exclusif avec conducteurId)",
+    format: 'uuid',
+  })
+  @IsOptional()
+  @IsString()
+  passagerId?: string;
 
   @ApiPropertyOptional({ description: 'Trajet en cours au moment du déclenchement, si connu', format: 'uuid' })
   @IsOptional()

@@ -7,7 +7,7 @@ export class CreatePaiementDto {
   @IsString()
   abonnementId: string;
 
-  @ApiProperty({ enum: OperateurPaiement, description: 'Opérateur mobile money' })
+  @ApiProperty({ enum: OperateurPaiement, description: 'Opérateur mobile money (routé vers GetMePay)' })
   @IsEnum(OperateurPaiement)
   operateur: OperateurPaiement;
 

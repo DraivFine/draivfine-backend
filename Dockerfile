@@ -1,8 +1,9 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
-RUN apk add --no-cache openssl
+RUN apk add --no-cache openssl python3 make g++
 COPY package*.json ./
-RUN npm config set fetch-retries 5 \
+RUN --mount=type=cache,target=/root/.npm \
+    npm config set fetch-retries 5 \
     && npm config set fetch-retry-mintimeout 20000 \
     && npm config set fetch-retry-maxtimeout 120000 \
     && npm ci
@@ -13,9 +14,10 @@ RUN npm run build
 FROM node:20-alpine
 WORKDIR /app
 ENV NODE_ENV=production
-RUN apk add --no-cache openssl
+RUN apk add --no-cache openssl python3 make g++
 COPY package*.json ./
-RUN npm config set fetch-retries 5 \
+RUN --mount=type=cache,target=/root/.npm \
+    npm config set fetch-retries 5 \
     && npm config set fetch-retry-mintimeout 20000 \
     && npm config set fetch-retry-maxtimeout 120000 \
     && npm ci --omit=dev

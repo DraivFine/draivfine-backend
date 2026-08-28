@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Score } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -47,11 +47,18 @@ export class AlertesService {
    * juste après l'appel HTTP.
    */
   async creerUrgence(dto: DeclencherUrgenceDto) {
+    // Le bouton d'urgence mobile est visible pour les deux rôles (conducteur
+    // et passager) — même garde XOR que ContactsUrgenceService.create.
+    if (!dto.conducteurId === !dto.passagerId) {
+      throw new BadRequestException('Fournir exactement un conducteurId ou un passagerId');
+    }
+
     let alerte = await this.prisma.alerte.create({
       data: {
         type: dto.type,
         message: 'Bouton urgence déclenché',
         conducteurId: dto.conducteurId,
+        passagerId: dto.passagerId,
         latitude: dto.latitude,
         longitude: dto.longitude,
         trajetId: dto.trajetId,
@@ -60,8 +67,9 @@ export class AlertesService {
 
     // trajetId est optionnel sur le DTO : ne chercher/mettre à jour le
     // passager que s'il a été fourni, sinon findUnique({ id: undefined })
-    // lève une erreur Prisma.
-    if (dto.trajetId) {
+    // lève une erreur Prisma. Ne s'applique qu'au déclenchement conducteur —
+    // un passager fournit déjà son propre passagerId ci-dessus.
+    if (dto.conducteurId && dto.trajetId) {
       const trajet = await this.prisma.trajet.findUnique({ where: { id: dto.trajetId } });
       if (trajet?.passagerId) {
         alerte = await this.prisma.alerte.update({
@@ -71,33 +79,66 @@ export class AlertesService {
       }
     }
 
-    const conducteur = await this.prisma.conducteur.findUnique({
-      where: { id: dto.conducteurId },
-      include: { utilisateur: true, contactsUrgence: true, gestionnaire: true },
-    });
-
     const diffusions: Promise<unknown>[] = [
       Promise.resolve(this.realtimeGateway.diffuserAlerte(alerte)),
     ];
 
-    for (const contact of conducteur?.contactsUrgence ?? []) {
-      if (!contact.actif || !contact.telephone) continue;
-      diffusions.push(
-        this.notifications.envoyerSms(
-          contact.telephone,
-          `Urgence signalée pour ${conducteur?.utilisateur.nom}. Position : ${dto.latitude}, ${dto.longitude}`,
-        ),
-      );
-    }
+    if (dto.conducteurId) {
+      const conducteur = await this.prisma.conducteur.findUnique({
+        where: { id: dto.conducteurId },
+        include: { utilisateur: true, contactsUrgence: true, gestionnaire: true },
+      });
 
-    if (conducteur?.gestionnaire) {
-      diffusions.push(
-        this.notifications.envoyerPush(
-          conducteur.gestionnaire.id,
-          'Urgence conducteur',
-          `${conducteur.utilisateur.nom} a déclenché le bouton d'urgence`,
-        ),
-      );
+      for (const contact of conducteur?.contactsUrgence ?? []) {
+        if (!contact.actif || !contact.telephone) continue;
+        diffusions.push(
+          this.notifications.envoyerSms(
+            contact.telephone,
+            `Urgence signalée pour ${conducteur?.utilisateur.nom}. Position : ${dto.latitude}, ${dto.longitude}`,
+          ),
+        );
+      }
+
+      if (conducteur?.gestionnaire) {
+        diffusions.push(
+          this.notifications.envoyerPush(
+            conducteur.gestionnaire.id,
+            'Urgence conducteur',
+            `${conducteur.utilisateur.nom} a déclenché le bouton d'urgence`,
+          ),
+        );
+      }
+    } else if (dto.passagerId) {
+      const passager = await this.prisma.passager.findUnique({
+        where: { id: dto.passagerId },
+        include: { utilisateur: true, contactsUrgence: true },
+      });
+
+      for (const contact of passager?.contactsUrgence ?? []) {
+        if (!contact.actif || !contact.telephone) continue;
+        diffusions.push(
+          this.notifications.envoyerSms(
+            contact.telephone,
+            `Urgence signalée pour ${passager?.utilisateur.nom}. Position : ${dto.latitude}, ${dto.longitude}`,
+          ),
+        );
+      }
+
+      if (dto.trajetId) {
+        const trajet = await this.prisma.trajet.findUnique({
+          where: { id: dto.trajetId },
+          include: { conducteur: { include: { gestionnaire: true } } },
+        });
+        if (trajet?.conducteur.gestionnaire) {
+          diffusions.push(
+            this.notifications.envoyerPush(
+              trajet.conducteur.gestionnaire.id,
+              'Urgence passager',
+              `${passager?.utilisateur.nom} a déclenché le bouton d'urgence pendant un trajet`,
+            ),
+          );
+        }
+      }
     }
 
     // On lance tout en parallèle ; un échec d'une branche (ex. SMS) ne doit
@@ -110,11 +151,30 @@ export class AlertesService {
     return alerte;
   }
 
-  findAll(statut?: string) {
+  findAll(statut?: string, conducteurId?: string) {
     return this.prisma.alerte.findMany({
-      where: statut ? { statut: statut as any } : undefined,
+      where: {
+        statut: statut ? (statut as any) : undefined,
+        conducteurId,
+      },
       orderBy: { creeLe: 'desc' },
       take: 200,
+    });
+  }
+
+  async findOne(id: string) {
+    const alerte = await this.prisma.alerte.findUnique({ where: { id } });
+    if (!alerte) throw new NotFoundException('Alerte introuvable');
+    return alerte;
+  }
+
+  async ajouterPhotos(id: string, urls: string[]) {
+    const alerte = await this.prisma.alerte.findUnique({ where: { id } });
+    if (!alerte) throw new NotFoundException('Alerte introuvable');
+
+    return this.prisma.alerte.update({
+      where: { id },
+      data: { photos: { push: urls } },
     });
   }
 
