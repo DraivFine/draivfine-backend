@@ -8,6 +8,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { GestionnairesModule } from '../gestionnaires/gestionnaires.module';
 import { ConducteursModule } from '../conducteurs/conducteurs.module';
 import { PassagersModule } from '../passagers/passagers.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { PassagersModule } from '../passagers/passagers.module';
     GestionnairesModule,
     ConducteursModule,
     PassagersModule,
+    NotificationsModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],

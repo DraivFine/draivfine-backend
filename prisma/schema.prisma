@@ -125,6 +125,11 @@ model Utilisateur {
   motDePasseHash String          @map("mot_de_passe_hash")
   photoUrl       String?         @map("photo_url")
   creeLe         DateTime        @default(now()) @map("cree_le")
+  // Réinitialisation de mot de passe sans connexion : code à usage unique
+  // (hashé, jamais stocké en clair) envoyé par SMS/e-mail, valable un temps
+  // limité. NULL en dehors d'une demande de réinitialisation en cours.
+  codeResetHash   String?   @map("code_reset_hash")
+  codeResetExpire DateTime? @map("code_reset_expire")
 
   passager     Passager?
   conducteur   Conducteur?
