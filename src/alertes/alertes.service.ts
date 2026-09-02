@@ -151,11 +151,12 @@ export class AlertesService {
     return alerte;
   }
 
-  findAll(statut?: string, conducteurId?: string) {
+  findAll(statut?: string, conducteurId?: string, passagerId?: string) {
     return this.prisma.alerte.findMany({
       where: {
         statut: statut ? (statut as any) : undefined,
         conducteurId,
+        passagerId,
       },
       orderBy: { creeLe: 'desc' },
       take: 200,
