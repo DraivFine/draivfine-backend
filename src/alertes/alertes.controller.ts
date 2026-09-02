@@ -44,12 +44,17 @@ export class AlertesController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Lister les alertes, éventuellement filtrées par statut et/ou conducteur' })
+  @ApiOperation({ summary: 'Lister les alertes, éventuellement filtrées par statut et/ou conducteur/passager' })
   @ApiQuery({ name: 'statut', required: false, enum: ['NOUVELLE', 'EN_COURS', 'RESOLUE', 'IGNOREE'] })
   @ApiQuery({ name: 'conducteurId', required: false, description: "Filtrer par conducteur (historique mobile)" })
+  @ApiQuery({ name: 'passagerId', required: false, description: "Filtrer par passager (historique mobile)" })
   @ApiResponse({ status: 200, description: 'Liste des alertes (200 plus récentes)' })
-  findAll(@Query('statut') statut?: string, @Query('conducteurId') conducteurId?: string) {
-    return this.alertesService.findAll(statut, conducteurId);
+  findAll(
+    @Query('statut') statut?: string,
+    @Query('conducteurId') conducteurId?: string,
+    @Query('passagerId') passagerId?: string,
+  ) {
+    return this.alertesService.findAll(statut, conducteurId, passagerId);
   }
 
   @Get(':id')
