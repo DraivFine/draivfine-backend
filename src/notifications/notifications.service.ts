@@ -28,4 +28,9 @@ export class NotificationsService {
     this.logger.log(`[Push FCM] à ${tokenAppareil} : ${titre} — ${corps}`);
     // TODO: brancher firebase-admin (this.config.get('fcm')) ici.
   }
+
+  async envoyerEmail(destinataire: string, sujet: string, corps: string): Promise<void> {
+    this.logger.log(`[E-mail] à ${destinataire} : ${sujet} — ${corps}`);
+    // TODO: brancher un fournisseur d'e-mail transactionnel (SendGrid, SES...) ici.
+  }
 }
