@@ -20,6 +20,7 @@ import { ApiBody, ApiConsumes, ApiOperation, ApiParam, ApiQuery, ApiResponse, Ap
 import { diskStorage } from 'multer';
 import { AlertesService } from './alertes.service';
 import { DeclencherUrgenceDto } from './dto/declencher-urgence.dto';
+import { SignalerIncidentDto } from './dto/signaler-incident.dto';
 import { UpdateStatutAlerteDto } from './dto/update-statut-alerte.dto';
 
 const PHOTOS_DIR = join(process.cwd(), 'uploads', 'photos');
@@ -41,6 +42,17 @@ export class AlertesController {
   @ApiResponse({ status: 201, description: 'Alerte urgence créée et diffusion lancée' })
   declencherUrgence(@Body() dto: DeclencherUrgenceDto) {
     return this.alertesService.creerUrgence(dto);
+  }
+
+  @Post('incident')
+  @ApiOperation({
+    summary: 'Signaler un incident non vital pendant un trajet',
+    description:
+      "Contrairement à /alertes/urgence, ne prévient pas les contacts d'urgence par SMS — seul le gestionnaire de flotte est notifié (push).",
+  })
+  @ApiResponse({ status: 201, description: 'Incident enregistré et gestionnaire notifié' })
+  signalerIncident(@Body() dto: SignalerIncidentDto) {
+    return this.alertesService.creerIncident(dto);
   }
 
   @Get()
