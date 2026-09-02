@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { DeclencherUrgenceDto } from './dto/declencher-urgence.dto';
+import { SignalerIncidentDto } from './dto/signaler-incident.dto';
 import { UpdateStatutAlerteDto } from './dto/update-statut-alerte.dto';
 
 @Injectable()
@@ -147,6 +148,64 @@ export class AlertesService {
     resultats
       .filter((r) => r.status === 'rejected')
       .forEach((r) => this.logger.error('Échec diffusion urgence', (r as PromiseRejectedResult).reason));
+
+    return alerte;
+  }
+
+  /**
+   * Signalement d'incident non vital pendant un trajet (conduite dangereuse,
+   * comportement...) — contrairement à creerUrgence, pas de SMS aux contacts
+   * d'urgence : ce canal est réservé aux vraies urgences. Seul le
+   * gestionnaire de flotte est notifié (push), pour rester informé sans
+   * alarmer inutilement les proches.
+   */
+  async creerIncident(dto: SignalerIncidentDto) {
+    if (!dto.conducteurId === !dto.passagerId) {
+      throw new BadRequestException('Fournir exactement un conducteurId ou un passagerId');
+    }
+
+    const alerte = await this.prisma.alerte.create({
+      data: {
+        type: 'INCIDENT_SIGNALE',
+        message: dto.message || 'Incident signalé',
+        conducteurId: dto.conducteurId,
+        passagerId: dto.passagerId,
+        latitude: dto.latitude,
+        longitude: dto.longitude,
+        trajetId: dto.trajetId,
+      },
+    });
+
+    this.realtimeGateway.diffuserAlerte(alerte);
+
+    let gestionnaireId: string | undefined;
+    let nomAuteur: string | undefined;
+
+    if (dto.conducteurId) {
+      const conducteur = await this.prisma.conducteur.findUnique({
+        where: { id: dto.conducteurId },
+        include: { utilisateur: true, gestionnaire: true },
+      });
+      gestionnaireId = conducteur?.gestionnaire?.id;
+      nomAuteur = conducteur?.utilisateur.nom;
+    } else if (dto.trajetId) {
+      const trajet = await this.prisma.trajet.findUnique({
+        where: { id: dto.trajetId },
+        include: { conducteur: { include: { utilisateur: true, gestionnaire: true } } },
+      });
+      gestionnaireId = trajet?.conducteur.gestionnaire?.id;
+      nomAuteur = trajet?.conducteur.utilisateur.nom;
+    }
+
+    if (gestionnaireId) {
+      await this.notifications
+        .envoyerPush(
+          gestionnaireId,
+          'Incident signalé',
+          dto.message ? `${nomAuteur ?? 'Un utilisateur'} a signalé : ${dto.message}` : `${nomAuteur ?? 'Un utilisateur'} a signalé un incident`,
+        )
+        .catch((err) => this.logger.error('Échec notification incident', err));
+    }
 
     return alerte;
   }
