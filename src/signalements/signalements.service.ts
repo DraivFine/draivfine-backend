@@ -8,7 +8,7 @@ import { UpdateStatutSignalementDto } from './dto/update-statut-signalement.dto'
 export class SignalementsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateSignalementDto) {
+  async create(dto: CreateSignalementDto, photoUrls: string[] = []) {
     // Signalement public (sans compte) : le témoin ne connaît ni conducteurId
     // ni vehiculeId, seulement ce qu'il a sous les yeux (plaque relevée,
     // badge scanné). La résolution reste best-effort — un signalement
@@ -38,6 +38,7 @@ export class SignalementsService {
         trajetId: dto.trajetId,
         conducteurId,
         vehiculeId,
+        photos: photoUrls,
       },
     });
   }

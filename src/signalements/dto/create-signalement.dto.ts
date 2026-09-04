@@ -1,12 +1,18 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import { IsNumber, IsOptional, IsPhoneNumber, IsString } from 'class-validator';
 
 export class CreateSignalementDto {
+  // @Type(() => Number) : indispensable en multipart/form-data (photos
+  // jointes à la création), où tous les champs arrivent en chaînes — sans
+  // ça, @IsNumber() rejette "3.8925" comme n'étant pas un nombre.
   @ApiProperty({ description: 'Latitude GPS du signalement', example: 3.8925 })
+  @Type(() => Number)
   @IsNumber()
   latitude!: number;
 
   @ApiProperty({ description: 'Longitude GPS du signalement', example: 11.5213 })
+  @Type(() => Number)
   @IsNumber()
   longitude!: number;
 
