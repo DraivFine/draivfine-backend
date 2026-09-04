@@ -11,6 +11,7 @@ import { CapteursModule } from './capteurs/capteurs.module';
 import { ScoringModule } from './scoring/scoring.module';
 import { EvaluationsModule } from './evaluations/evaluations.module';
 import { AlertesModule } from './alertes/alertes.module';
+import { SignalementsModule } from './signalements/signalements.module';
 import { ContactsUrgenceModule } from './contacts-urgence/contacts-urgence.module';
 import { AbonnementsModule } from './abonnements/abonnements.module';
 import { PlansModule } from './plans/plans.module';
@@ -53,6 +54,7 @@ import { GestionnairesModule } from './gestionnaires/gestionnaires.module';
     ScoringModule,
     EvaluationsModule,
     AlertesModule,
+    SignalementsModule,
     ContactsUrgenceModule,
     AbonnementsModule,
     PlansModule,
